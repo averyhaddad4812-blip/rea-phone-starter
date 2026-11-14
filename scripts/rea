@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Runs REA with the kit's settings loaded.
+# Usage: scripts/rea <command> [options]     e.g. scripts/rea inspect-android-package apps/app.apk
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="$ROOT/.rea-env"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "REA isn't set up in this session yet. Run: bash scripts/setup.sh" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+exec npx -y "rea-agents@${REA_VERSION}" "$@"

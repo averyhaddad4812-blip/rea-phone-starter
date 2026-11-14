@@ -1,0 +1,11 @@
+# Downloaded by scripts/setup.sh in each session
+tools/
+.rea-env
+
+# App files you're studying (download them again any time)
+apps/*
+!apps/README.md
+
+# Raw tool output
+*.json.part
+*.apk.part
