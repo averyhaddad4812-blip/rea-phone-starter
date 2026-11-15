@@ -174,10 +174,10 @@ async function allModels() {
 }
 function modelInfo(id) { return modelCache.list.find((m) => m.id === id); }
 
-// Rough cost of one build (about 9,000 words in, 6,000 out) and one question, in dollars.
+// Rough cost of one build (about 20,000 tokens in, 10,000 out; big apps cost more) and one question, in dollars.
 function estimate(m) {
   if (!m || !(m.prompt >= 0) || !(m.completion >= 0)) return null;
-  return { build: m.prompt * 9000 + m.completion * 6000, question: m.prompt * 2500 + m.completion * 350 };
+  return { build: m.prompt * 20000 + m.completion * 10000, question: m.prompt * 2500 + m.completion * 350 };
 }
 
 function currentModel() {

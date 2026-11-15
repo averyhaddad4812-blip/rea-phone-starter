@@ -744,9 +744,9 @@ async function renderModels(chosen) {
   try {
     const r = await api(`/api/models?q=${encodeURIComponent(q)}`);
     const list = q ? r.models : r.popular;
-    $("model-count").textContent = q
+    $("model-count").textContent = (q
       ? `${r.count} of ${r.total} models match${r.count > r.models.length ? `, showing the newest ${r.models.length}` : ""}.`
-      : `Popular picks. Search to see all ${r.total} models.`;
+      : `Popular picks. Search to see all ${r.total} models.`) + " Prices are rough: big apps and big changes cost more.";
     $("brains").replaceChildren(...list.map((m) => brainRow(m, chosen)));
   } catch { /* the lock screen handles a wrong passcode */ }
 }
