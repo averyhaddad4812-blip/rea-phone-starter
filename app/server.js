@@ -350,7 +350,7 @@ Build or update ONE self-contained HTML file, with all CSS and JavaScript inline
 
 Using other apps:
 - A REA report about an app is for ideas: its purpose, features and screens.
-- Source code from an open-source app (with its license) may be reused and translated into this web app. When you use any of it, keep a short visible credit inside the app (for example a small "Credits" note) naming the original project, its license and its link, and put the same credit in an HTML comment at the top of the file. Keep the original's own copyright lines in that comment.
+- Source code from an open-source app (with its license) may be reused and translated into this web app. When you use any of it, or are asked to build from it, keep a short visible credit inside the app (for example a small "Credits" note) naming the original project, its license and its link, and put the same credit in an HTML comment at the top of the file. Keep the original's own copyright lines in that comment.
 - Never use the original app's name, logo or icons as this app's own name or branding. Never use copyrighted characters or real brands.
 Never build something that pretends to be a real company's login or payment page, collects passwords, or is meant to harm or deceive people. If asked for that, explain briefly and kindly, and don't send an app.
 If the request is unclear, make a sensible choice and mention it, rather than asking.
@@ -442,7 +442,14 @@ async function runBuild(job, project, request) {
     saveProject(p);
     return;
   }
-  const html = htmlMatch[1].replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/, "");
+  let html = htmlMatch[1].replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/, "");
+  // Safety net: an app built from someone's open-source code always carries their credit.
+  const remixMeta = p.remixFrom ? (sourceMeta(p.remixFrom) || p.remixLicense) : null;
+  const remixLink = remixMeta?.sourceCode || remixMeta?.link || "";
+  if (remixMeta && remixLink && !html.includes(remixLink)) {
+    const credit = `<!-- Based on "${String(remixMeta.name).replace(/--/g, "-")}" (${remixLink}), licensed under ${remixMeta.license}. Changed and translated with REA Studio. -->\n`;
+    html = /^\s*<!doctype[^>]*>/i.test(html) ? html.replace(/^\s*<!doctype[^>]*>\s*/i, (m) => m.trimEnd() + "\n" + credit) : credit + html;
+  }
   if (!/<(html|body|div|main|canvas|script)\b/i.test(html) || html.length > 500_000) {
     throw new Error("The app that came back didn't look right. Try asking again.");
   }
@@ -461,7 +468,7 @@ function remixCode(project, request) {
   const firstAsk = project.messages.find((m) => m.role === "me")?.text || "";
   const files = pickSourceFiles(meta.pkg, `${firstAsk} ${request}`);
   const tree = listFiles(sourceDir(meta.pkg)).map((f) => f.path).slice(0, 300).join("\n");
-  return `Open-source code you may reuse and translate, from "${meta.name}".\nLicense: ${meta.license}\nLink: ${meta.sourceCode}\n`
+  return `The person chose to build from the open-source app "${meta.name}". Base this app on its real code: reuse and translate its logic, features and behavior into the web app wherever they fit the request. Always include the credit described in your instructions.\nLicense: ${meta.license}\nLink: ${meta.sourceCode}\n`
     + `All files in that project:\n${tree}\n\nThe files most related to this request:\n`
     + files.map((f) => `<source_file path="${f.path}">\n${f.text}\n</source_file>`).join("\n");
 }
