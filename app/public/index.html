@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1714">
+<title>REA Studio</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- Lock -->
+  <section id="view-lock" class="view lock" hidden>
+    <div class="mark big"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></div>
+    <h1>REA Studio</h1>
+    <p class="muted">Enter your passcode to unlock.</p>
+    <form id="lock-form" class="stack">
+      <label for="passcode" class="sr">Passcode</label>
+      <input id="passcode" type="password" autocomplete="current-password" placeholder="Passcode" required>
+      <p id="lock-error" class="error" role="alert"></p>
+      <button class="primary" type="submit">Unlock</button>
+    </form>
+  </section>
+
+  <!-- Home -->
+  <section id="view-home" class="view" hidden>
+    <header class="bar">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></div><span>REA Studio</span></div>
+      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span>Claude</button>
+    </header>
+    <main class="scroll">
+      <h1 class="hero">What do you want to understand?</h1>
+      <form id="ask-form" class="card ask">
+        <label for="app-id" class="label">App (F-Droid package id or link)</label>
+        <input id="app-id" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="org.fossify.math" required>
+        <label for="question" class="label">Your question</label>
+        <textarea id="question" rows="2" placeholder="Is this app safe to install?"></textarea>
+        <p id="ask-error" class="error" role="alert"></p>
+        <div class="row end">
+          <button class="send" type="submit" aria-label="Start investigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </form>
+      <div class="chips" aria-label="Suggested questions">
+        <button type="button" class="chip" data-q="Is this app genuine?">Is this app genuine?</button>
+        <button type="button" class="chip" data-q="Does this app go online?">Does it go online?</button>
+        <button type="button" class="chip" data-q="What permissions does it ask for, and what do they mean?">Its permissions</button>
+      </div>
+      <section class="stack tight">
+        <h2 class="section">Recent</h2>
+        <div id="recent" class="stack tight"></div>
+        <p id="recent-empty" class="muted small">Your investigations will show up here.</p>
+      </section>
+      <p id="home-spend" class="muted small"></p>
+    </main>
+  </section>
+
+  <!-- Chat -->
+  <section id="view-chat" class="view" hidden>
+    <header class="bar">
+      <button class="icon" type="button" data-go="home" aria-label="Back to home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="titles"><span id="chat-title" class="title">Investigation</span><span id="chat-sub" class="muted small"></span></div>
+      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span>Claude</button>
+    </header>
+    <main id="chat-log" class="scroll chat" aria-live="polite"></main>
+    <form id="follow-form" class="composer">
+      <label for="follow" class="sr">Ask a follow-up</label>
+      <input id="follow" type="text" placeholder="Ask a follow-up" autocomplete="off">
+      <button class="send small" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </form>
+  </section>
+
+  <!-- Report -->
+  <section id="view-report" class="view" hidden>
+    <header class="bar">
+      <button class="icon" type="button" data-back aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="title grow">Report</span>
+    </header>
+    <main id="report-body" class="scroll"></main>
+    <div class="actions">
+      <button class="primary" type="button" disabled>Save to GitHub (coming soon)</button>
+      <button class="secondary" type="button" data-go="chat">Ask a follow-up</button>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="view-settings" class="view" hidden>
+    <header class="bar"><h1 class="title big">Settings</h1></header>
+    <main class="scroll">
+      <section class="stack tight">
+        <h2 class="section">AI brains</h2>
+        <div class="card row"><div class="grow"><b>OpenRouter</b><span id="ai-status" class="muted small block"></span></div></div>
+        <div class="card list">
+          <div class="item"><span class="grow">Claude</span><span class="accent small">Main brain</span></div>
+          <div class="item dim"><span class="grow">ChatGPT</span><span class="small">Version 2</span></div>
+          <div class="item dim"><span class="grow">Gemini</span><span class="small">Version 2</span></div>
+          <div class="item dim"><span class="grow">Muse</span><span class="small">If Meta allows</span></div>
+        </div>
+      </section>
+      <section class="stack tight">
+        <h2 class="section">Safety</h2>
+        <div class="card list">
+          <div class="item"><span class="grow"><b>Clean-room mode</b><span class="muted small block">Reads app files only. Always on in Version 1.</span></span><span class="accent small">On</span></div>
+          <div class="item"><span class="grow"><b>Open-source apps only</b><span class="muted small block">Version 1 studies apps from F-Droid</span></span><span class="accent small">On</span></div>
+        </div>
+      </section>
+      <section class="stack tight">
+        <h2 class="section">Spending</h2>
+        <div class="card"><div class="row between"><b>Monthly limit</b><span id="limit" class="num"></span></div>
+          <div class="meter" aria-hidden="true"><div id="meter-fill"></div></div>
+          <span id="spent" class="muted small block"></span></div>
+      </section>
+      <button id="sign-out" class="secondary" type="button">Lock the app</button>
+    </main>
+  </section>
+
+  <nav id="nav" class="nav" aria-label="Main" hidden>
+    <button type="button" data-go="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</button>
+    <button type="button" data-go="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg>Chat</button>
+    <button type="button" data-go="report"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>Report</button>
+    <button type="button" data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Settings</button>
+  </nav>
+</div>
+</body>
+</html>

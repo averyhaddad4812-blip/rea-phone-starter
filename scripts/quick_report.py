@@ -196,6 +196,7 @@ def main():
     parser.add_argument("apk")
     parser.add_argument("--source", help="Where the app file came from (shown in the report)")
     parser.add_argument("--out", help="Report path (default: reports/<package>.md)")
+    parser.add_argument("--json", help="Also save the key facts as JSON to this path")
     args = parser.parse_args()
 
     apk = os.path.abspath(args.apk)
@@ -308,6 +309,31 @@ def main():
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
+
+    if args.json:
+        sig_text = signature_line(sig, sig_err)
+        summary = {
+            "label": label,
+            "package": package,
+            "version": str(version),
+            "signature": sig_text.replace("**", ""),
+            "genuine": sig_text.startswith("✅"),
+            "uses_internet": uses_internet,
+            "sensitive_permissions": [p[0] for p in sensitive],
+            "permissions": [{"name": n, "meaning": m, "sensitive": s} for n, m, s in permissions],
+            "screens": screens,
+            "languages": languages,
+            "works_on": min_android,
+            "size_mb": round(size_mb, 1),
+            "classes": classes,
+            "shared_parts": len(shared),
+            "sha256": digest,
+            "source": args.source,
+            "rea_version": rea_version(),
+        }
+        os.makedirs(os.path.dirname(os.path.abspath(args.json)), exist_ok=True)
+        with open(args.json, "w", encoding="utf-8") as fh:
+            json.dump(summary, fh, indent=2)
     print(f"✅ Report saved to {os.path.relpath(out, ROOT)}", file=sys.stderr)
     print(out)
 

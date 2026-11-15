@@ -12,3 +12,6 @@ apps/*
 
 # Python leftovers
 __pycache__/
+
+# REA Studio's saved reports and spending (kept on the server, not in Git)
+app/data/

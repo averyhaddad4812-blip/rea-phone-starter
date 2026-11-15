@@ -1,0 +1,9 @@
+.git
+.github
+tools
+.rea-env
+apps/*
+!apps/README.md
+app/data
+**/__pycache__
+*.part
