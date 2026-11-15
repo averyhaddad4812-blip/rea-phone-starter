@@ -9,3 +9,6 @@ apps/*
 # Raw tool output
 *.json.part
 *.apk.part
+
+# Python leftovers
+__pycache__/
