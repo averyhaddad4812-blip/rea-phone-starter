@@ -1,36 +1,42 @@
-# 🌈 REA Studio
+# REA Studio
 
-A private phone app that does two things:
+A private phone app, styled like a code editor, that does three things:
 
-- **Build:** describe an app in plain words and watch it appear in a live preview, like Lovable. Ask for changes in chat until it's right.
-- **Study:** take apart an open-source Android app with **REA (Reverse Engineer Anything)** and get a plain-English explanation.
+- **Build:** describe an app in plain words and watch it appear in a live preview, like Lovable. Ask for changes in chat until it's right. The **Code** tab shows every line.
+- **Study:** check an open-source Android app with **REA (Reverse Engineer Anything)**: is it genuine, what can it access, does it go online.
+- **Source code:** download the *whole* real source code of an open-source app (the exact version F-Droid built), browse every file, and ask the AI about any of them.
 
-The two connect. After studying an app, tap **Build something inspired by this**. The builder gets REA's report as ideas only and writes all its code fresh.
+They connect. From an app's source code, tap **Build an app with this code**: the builder can reuse and translate that code, and adds the credit and license to your app automatically.
 
-Every build follows **Craft Anything**'s steps, shown as a rainbow bar that lights up in order:
+Every build follows **Craft Anything**'s steps, shown as a bar that fills in order:
 
 | Step | What happens |
 |---|---|
-| **Study** | Optional: ideas from an app you studied with REA |
+| **Study** | Optional: real code (or REA's report) from an app you studied |
 | **Build** | Your chosen AI writes the app |
 | **Check** | The preview watches for errors. If it finds one, tap **Fix it** |
 | **Ready** | No errors: open it full screen or download it |
 
-It installs to your home screen like a normal app (it's a "PWA", a website that acts like an app).
+## AI models
 
-## AI brains
+Every text model on OpenRouter can be picked in Settings. Search by name (for example "gemini", "kimi" or "free"), and each one shows roughly what a build and a question cost. Muse isn't available, because Meta doesn't offer it to other apps.
 
-Pick one in Settings. All of them go through your OpenRouter account: Claude Sonnet 5.5 (the default), Claude Opus 5.5, Claude Haiku 5.5, ChatGPT, Gemini and Kimi. Muse isn't available, because Meta doesn't offer it to other apps.
+## Licenses, in plain words
+
+Everything you can study here is open source, so reading and reusing its code is allowed, as long as you follow its license:
+
+- **Permissive licenses** (MIT, Apache, BSD): reuse freely and keep the credit.
+- **Share-alike licenses** (GPL, AGPL, MPL and similar): keep the credit, and if you share or sell an app that uses the code, share your app's code under the same license too.
+
+The app shows the license on every source and every remixed app, and the builder adds the credit for you. Closed-source and paid apps aren't supported: copying their code isn't legal.
 
 ## How it's built
 
 | Part | What it does |
 |---|---|
-| `server.js` | The back room. No add-ons needed, just Node. Locked with your passcode. |
-| `public/` | The phone screens: Home, Study, Report, Build, Settings |
+| `server.js` | The back room. No add-ons needed, just Node (plus Git for source code). Locked with your passcode. |
+| `public/` | The phone screens: Home, Study, Report, Source, File, Build, Settings |
 | `../Dockerfile` | A recipe for hosts that run Docker |
-
-The back room reuses the kit's own scripts (`get-app.sh`, `quick_report.py`), so the app and the Run button always agree.
 
 ## Settings (set on the host, never in the code)
 
@@ -38,9 +44,9 @@ The back room reuses the kit's own scripts (`get-app.sh`, `quick_report.py`), so
 |---|---|
 | `APP_PASSCODE` | **Required.** Only people with this can use the app. Pick something long. |
 | `OPENROUTER_API_KEY` | Optional. Easier: paste your key in the app's **Settings** screen. It's checked with OpenRouter, saved on the server only, and never sent back to the phone. |
-| `OPENROUTER_MODEL` | Optional. The starting brain. Default `anthropic/claude-sonnet-5.5`. |
+| `OPENROUTER_MODEL` | Optional. The starting model. Default `anthropic/claude-sonnet-5.5`. |
 | `MONTHLY_LIMIT_USD` | Optional. Default `20`. The AI pauses when the month's spending reaches it. |
-| `DATA_DIR` | Optional. Where reports, apps and spending are saved. |
+| `DATA_DIR` | Optional. Where reports, source code, apps and spending are saved. |
 
 ## Run it yourself
 
@@ -52,17 +58,11 @@ APP_PASSCODE=your-passcode node app/server.js
 
 ## Safety, built in
 
-- **Study** only accepts F-Droid apps (every F-Droid app is open source). REA only reads the file, never runs it, and the file is deleted after the check.
-- **Build** is clean-room: it can use REA's report for ideas, never another app's code, art or branding. It won't build fake login or payment pages.
-- **Sealed previews:** each built app runs in a locked-down sandbox with its own blank origin, so it can't see your passcode, your key or the rest of REA Studio. Preview links are signed and expire after 7 days.
-- Built apps can still remember things: REA Studio saves their data on your server for them.
+- Only open-source apps from F-Droid. REA only reads app files, never runs them.
+- Source code downloads are limited to code and text files, size-capped, and the oldest are cleared automatically.
+- **Sealed previews:** each built app runs in a locked-down sandbox with its own blank origin, so it can't see your passcode, your key or the rest of REA Studio. Preview links are signed and expire after 7 days. Built apps can still remember things: REA Studio saves their data on your server for them.
 - Your OpenRouter key stays on the server. Wrong passcodes are slowed down, and spending has a hard monthly limit.
-
-## Costs, roughly (with Claude Sonnet 5.5)
-
-- A Study question: about 1¢.
-- A new app or a change: about 5 to 20¢, depending on the app's size.
 
 ## Coming next
 
-Save to GitHub, publish an app to its own link, and a reviewer brain that double-checks builds.
+Save to GitHub, and publish an app to its own lasting link.

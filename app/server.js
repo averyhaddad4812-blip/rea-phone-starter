@@ -3,8 +3,11 @@
 //
 // - Serves the phone app (app/public).
 // - Study: runs REA checks on open-source F-Droid apps and has an AI explain them.
+// - Source: fetches the whole real source code of open-source apps (from F-Droid's records).
 // - Build: turns a description into a working web app with a live preview (Lovable-style),
-//   following Craft Anything's steps: Study, Build, Check, Ready.
+//   following Craft Anything's steps: Study, Build, Check, Ready. It can remix real
+//   open-source code, with the license tracked and credit added automatically.
+// - Any AI model on OpenRouter can be picked.
 // - Locked with a passcode, with a monthly spending limit across everything.
 "use strict";
 
@@ -23,26 +26,31 @@ const PROJECTS = path.join(DATA, "projects");
 const USAGE_FILE = path.join(DATA, "usage.json");
 const SECRETS_FILE = path.join(DATA, "secrets.json");
 const SETTINGS_FILE = path.join(DATA, "settings.json");
+const SOURCES = path.join(DATA, "sources");
+const MODELS_FILE = path.join(DATA, "models.json");
 
 const PORT = Number(process.env.PORT || 8080);
 const PASSCODE = process.env.APP_PASSCODE || "";
 const DEV = process.env.DEV === "1";
 const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-5.5";
-const OPENROUTER_URL = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1") + "/chat/completions";
+const OPENROUTER_BASE = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+const OPENROUTER_URL = OPENROUTER_BASE + "/chat/completions";
+const FDROID_METADATA = process.env.FDROID_METADATA_URL || "https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata";
 const LIMIT_USD = Number(process.env.MONTHLY_LIMIT_USD || 20);
 const CACHE_DAYS = 7;
 const PACKAGE_ID = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
 const PROJECT_ID = /^p_[a-f0-9]{12}$/;
 
-// The AI brains you can pick in Settings, all reached through OpenRouter.
-const BRAINS = [
-  { id: "anthropic/claude-sonnet-5.5", name: "Claude Sonnet 5.5", short: "Claude", note: "Best all-rounder" },
-  { id: "anthropic/claude-opus-5.5", name: "Claude Opus 5.5", short: "Claude Opus", note: "Smartest, about twice the cost" },
-  { id: "anthropic/claude-haiku-5.5", name: "Claude Haiku 5.5", short: "Claude Haiku", note: "Fastest and cheapest" },
-  { id: "openai/gpt-6.1-sol", name: "ChatGPT (GPT-6.1 Sol)", short: "ChatGPT", note: "OpenAI's model" },
-  { id: "google/gemini-4-carbon", name: "Gemini 4 Carbon", short: "Gemini", note: "Google's model" },
-  { id: "moonshotai/kimi-k3.1-pro", name: "Kimi K3.1 Pro", short: "Kimi", note: "Moonshot's model" },
+// Any model on OpenRouter can be picked in Settings. These are shown first as popular picks.
+const POPULAR = [
+  { id: "anthropic/claude-sonnet-5.5", note: "Best all-rounder" },
+  { id: "anthropic/claude-opus-5.5", note: "Smartest, about twice the cost" },
+  { id: "anthropic/claude-haiku-5.5", note: "Fastest and cheapest" },
+  { id: "openai/gpt-6.1-sol", note: "OpenAI's model" },
+  { id: "google/gemini-4-carbon", note: "Google's model" },
+  { id: "moonshotai/kimi-k3.1-pro", note: "Moonshot's model" },
 ];
+const MODEL_ID = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:-]+$/;
 
 if (!PASSCODE && !DEV) {
   console.error("Set APP_PASSCODE so only you can use the app (or DEV=1 for local testing).");
@@ -50,6 +58,7 @@ if (!PASSCODE && !DEV) {
 }
 fs.mkdirSync(REPORTS, { recursive: true });
 fs.mkdirSync(PROJECTS, { recursive: true });
+fs.mkdirSync(SOURCES, { recursive: true });
 
 // The OpenRouter key comes from the host's settings, or from the app's Settings screen
 // (saved on the server only, readable by nobody else, and never sent back to the phone).
@@ -140,12 +149,45 @@ function authorized(req) {
 
 // ---------- brain and spending ----------
 
+// OpenRouter's full model list, refreshed every 6 hours (no key needed to read it).
+let modelCache = readJson(MODELS_FILE, { at: 0, list: [] });
+async function allModels() {
+  if (Date.now() - modelCache.at < 6 * 3600 * 1000 && modelCache.list.length) return modelCache.list;
+  try {
+    const res = await fetch(`${OPENROUTER_BASE}/models`, { signal: AbortSignal.timeout(20 * 1000) });
+    const data = await res.json();
+    const list = (data.data || [])
+      .filter((m) => MODEL_ID.test(m.id) && !m.id.endsWith(":batch")
+        && (m.architecture?.input_modalities || ["text"]).includes("text")
+        && (m.architecture?.output_modalities || ["text"]).includes("text"))
+      .map((m) => ({
+        id: m.id, name: m.name || m.id,
+        prompt: Number(m.pricing?.prompt), completion: Number(m.pricing?.completion),
+        context: m.context_length || 0, maxOut: m.top_provider?.max_completion_tokens || 0, created: m.created || 0,
+      }));
+    if (list.length) {
+      modelCache = { at: Date.now(), list };
+      fs.writeFileSync(MODELS_FILE, JSON.stringify(modelCache));
+    }
+  } catch { /* keep the last list we had */ }
+  return modelCache.list;
+}
+function modelInfo(id) { return modelCache.list.find((m) => m.id === id); }
+
+// Rough cost of one build (about 9,000 words in, 6,000 out) and one question, in dollars.
+function estimate(m) {
+  if (!m || !(m.prompt >= 0) || !(m.completion >= 0)) return null;
+  return { build: m.prompt * 9000 + m.completion * 6000, question: m.prompt * 2500 + m.completion * 350 };
+}
+
 function currentModel() {
   const chosen = readJson(SETTINGS_FILE, {}).model;
-  return BRAINS.some((b) => b.id === chosen) ? chosen : DEFAULT_MODEL;
+  return chosen && MODEL_ID.test(chosen) ? chosen : DEFAULT_MODEL;
 }
 function brain(id) {
-  return BRAINS.find((b) => b.id === id) || { id, name: id, short: id.split("/").pop(), note: "" };
+  const m = modelInfo(id);
+  const name = m ? m.name.replace(/^[^:]{1,30}:\s*/, "") : id.split("/").pop();
+  return { id, name, short: name, cost: estimate(m), popular: POPULAR.find((p) => p.id === id)?.note || "" };
 }
 
 function monthKey() { return new Date().toISOString().slice(0, 7); }
@@ -164,7 +206,7 @@ async function callModel({ system, user, maxTokens, timeoutMs }) {
     headers: { Authorization: `Bearer ${OPENROUTER_KEY}`, "Content-Type": "application/json", "X-Title": "REA Studio" },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
+      max_tokens: Math.min(maxTokens, modelInfo(model)?.maxOut || maxTokens),
       usage: { include: true },
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
@@ -306,7 +348,10 @@ Build or update ONE self-contained HTML file, with all CSS and JavaScript inline
 - Keep it light so it runs smoothly on a phone: no huge images or heavy 3D unless asked.
 - When updating, keep everything the person liked and change only what they asked for. Always send the complete file.
 
-Clean-room rule: if you're given a report about another app, use it only for ideas (purpose, features, screens). Never reproduce another app's code, artwork, name or branding. Never use copyrighted characters or real brands.
+Using other apps:
+- A REA report about an app is for ideas: its purpose, features and screens.
+- Source code from an open-source app (with its license) may be reused and translated into this web app. When you use any of it, keep a short visible credit inside the app (for example a small "Credits" note) naming the original project, its license and its link, and put the same credit in an HTML comment at the top of the file. Keep the original's own copyright lines in that comment.
+- Never use the original app's name, logo or icons as this app's own name or branding. Never use copyrighted characters or real brands.
 Never build something that pretends to be a real company's login or payment page, collects passwords, or is meant to harm or deceive people. If asked for that, explain briefly and kindly, and don't send an app.
 If the request is unclear, make a sensible choice and mention it, rather than asking.
 
@@ -331,9 +376,12 @@ function previewUrl(id, rev) {
 function projectView(p) {
   const latest = p.versions[p.versions.length - 1];
   const inspired = p.inspiredBy ? savedReport(p.inspiredBy) : null;
+  const remix = p.remixFrom ? sourceMeta(p.remixFrom) : null;
   return {
     id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt,
     inspiredBy: p.inspiredBy || null, inspiredLabel: inspired?.summary?.label || p.inspiredBy || null,
+    remix: p.remixFrom ? { pkg: p.remixFrom, name: remix?.name || p.remixLicense?.name || p.remixFrom,
+      license: remix?.license || p.remixLicense?.license || "Unknown", link: remix?.sourceCode || p.remixLicense?.link || "" } : null,
     messages: p.messages.slice(-40),
     rev: p.rev, versionCount: p.versions.length, canUndo: p.versions.length > 1,
     html: latest ? latest.html : "", previewUrl: latest ? previewUrl(p.id, p.rev) : "",
@@ -371,7 +419,8 @@ async function runBuild(job, project, request) {
   const history = project.messages.filter((m) => m.role === "me" || m.role === "ai").slice(-9, -1)
     .map((m) => `${m.role === "me" ? "Person" : "Builder"}: ${m.text}`).join("\n");
   const user = [
-    report && `Inspiration: a REA report about an open-source app the person studied. Use it for ideas only, and write every line of code fresh.\n<report>\n${report.markdown}\n</report>`,
+    report && `A REA report about an app the person studied, for ideas:\n<report>\n${report.markdown}\n</report>`,
+    remixCode(project, request),
     history && `Conversation so far:\n${history}`,
     prev ? `Current version of the app:\n<current_app>\n${prev}\n</current_app>` : "There's no app yet, so build the first version.",
     `The person's request: ${request}`,
@@ -405,18 +454,33 @@ async function runBuild(job, project, request) {
   saveProject(p);
 }
 
+// The real source code to remix, with its license, chosen to fit the request.
+function remixCode(project, request) {
+  const meta = project.remixFrom ? sourceMeta(project.remixFrom) : null;
+  if (!meta || !fs.existsSync(sourceDir(meta.pkg))) return "";
+  const firstAsk = project.messages.find((m) => m.role === "me")?.text || "";
+  const files = pickSourceFiles(meta.pkg, `${firstAsk} ${request}`);
+  const tree = listFiles(sourceDir(meta.pkg)).map((f) => f.path).slice(0, 300).join("\n");
+  return `Open-source code you may reuse and translate, from "${meta.name}".\nLicense: ${meta.license}\nLink: ${meta.sourceCode}\n`
+    + `All files in that project:\n${tree}\n\nThe files most related to this request:\n`
+    + files.map((f) => `<source_file path="${f.path}">\n${f.text}\n</source_file>`).join("\n");
+}
+
 async function createProject(req, res) {
   let body;
   try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
   const prompt = String(body.prompt || "").trim().slice(0, 2000);
   if (!prompt) return send(res, 400, { error: "Describe the app you'd like first." });
   const inspiredBy = body.inspiredBy && PACKAGE_ID.test(body.inspiredBy) && savedReport(body.inspiredBy) ? body.inspiredBy : null;
+  const remixMeta = body.remixFrom ? sourceMeta(body.remixFrom) : null;
+  const remixFrom = remixMeta && fs.existsSync(sourceDir(remixMeta.pkg)) ? remixMeta.pkg : null;
   const notReady = aiReady();
   if (notReady) return send(res, 400, { error: notReady });
   if (building) return send(res, 429, { error: "Still building your last app. Give it a minute." });
 
   const now = new Date().toISOString();
   const project = { id: "p_" + crypto.randomBytes(6).toString("hex"), name: "New app", createdAt: now, inspiredBy, rev: 0,
+    remixFrom, remixLicense: remixMeta ? { name: remixMeta.name, license: remixMeta.license, link: remixMeta.sourceCode } : null,
     messages: [{ role: "me", text: prompt, at: now }], versions: [] };
   saveProject(project);
   const job = startBuild(project, prompt);
@@ -450,7 +514,8 @@ function undo(res, project) {
 function listProjects(res) {
   const items = fs.readdirSync(PROJECTS).filter((f) => f.endsWith(".json")).map((f) => {
     const p = readJson(path.join(PROJECTS, f), null);
-    return p && { id: p.id, name: p.name, updatedAt: p.updatedAt, versionCount: p.versions.length, inspiredBy: p.inspiredBy || null };
+    return p && { id: p.id, name: p.name, updatedAt: p.updatedAt, versionCount: p.versions.length, inspiredBy: p.inspiredBy || null,
+      remixLicense: p.remixLicense?.license || null };
   }).filter(Boolean).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   send(res, 200, { projects: items.slice(0, 50) });
 }
@@ -508,6 +573,179 @@ function servePreview(req, res, url) {
   });
 }
 
+// ---------- Source: the whole real code of open-source apps ----------
+//
+// F-Droid only lists open-source apps, and its public records say where each app's code
+// lives, its license, and the exact version F-Droid built. We download just the code and
+// text files of that version (no images or translations), which keeps it small.
+
+const CODE_PATTERNS = ["*.kt", "*.java", "*.kts", "*.gradle", "*.xml", "*.md", "*.txt", "*.toml", "*.properties", "*.json",
+  "*.js", "*.ts", "*.dart", "*.py", "*.rs", "*.go", "*.c", "*.cc", "*.cpp", "*.h", "*.swift", "*.html", "*.css",
+  "LICENSE*", "COPYING*", "NOTICE*", "!**/res/values-*/**", "!fastlane/**", "!**/fastlane/**"];
+const MAX_SOURCES = 6;
+let fetching = false;
+
+function sourceDir(pkg) { return path.join(SOURCES, pkg); }
+function sourceMeta(pkg) { return PACKAGE_ID.test(pkg) ? readJson(path.join(SOURCES, `${pkg}.json`), null) : null; }
+
+function listFiles(dir, base = dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === ".git") continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) listFiles(full, base, out);
+    else if (entry.isFile()) out.push({ path: path.relative(base, full).split(path.sep).join("/"), size: fs.statSync(full).size });
+  }
+  return out;
+}
+
+async function fdroidRecord(pkg) {
+  const res = await fetch(`${FDROID_METADATA}/${pkg}.yml`, { signal: AbortSignal.timeout(20 * 1000) });
+  if (!res.ok) throw new Error("F-Droid has no record of where this app's code lives.");
+  const y = await res.text();
+  const top = (k) => ((y.match(new RegExp(`^${k}:[ \\t]*(.+)$`, "m")) || [])[1] || "").trim().replace(/^['"]|['"]$/g, "");
+  const builds = [...y.matchAll(/versionName:\s*['"]?([^\s'"]+)['"]?[\s\S]*?commit:\s*['"]?([^\s'"]+)['"]?/g)]
+    .map((m) => ({ version: m[1], commit: m[2] }));
+  return { license: top("License") || "Unknown", repoType: top("RepoType"), repo: top("Repo"),
+    sourceCode: top("SourceCode") || top("Repo"), name: top("AutoName") || top("Name"), builds };
+}
+
+async function fetchSource(job, pkg) {
+  job.step = "Finding where the code lives";
+  const info = await fdroidRecord(pkg);
+  if (info.repoType !== "git" || !/^https:\/\/[A-Za-z0-9.-]+\/\S+$/.test(info.repo)) {
+    throw new Error("This app's code isn't kept in Git, so REA Studio can't fetch it yet.");
+  }
+  if (fs.statfsSync && (() => { const s = fs.statfsSync(SOURCES); return s.bavail * s.bsize < 150e6; })()) {
+    throw new Error("Your server is low on space. Delete some saved source code first.");
+  }
+  // Match the version REA checked, if we have its report; otherwise F-Droid's newest build.
+  const reportVersion = savedReport(pkg)?.summary?.version;
+  const build = info.builds.find((b) => b.version === reportVersion) || info.builds[info.builds.length - 1];
+
+  const tmp = sourceDir(pkg) + ".tmp";
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const git = (args) => run("git", args, { timeout: 3 * 60 * 1000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+  try {
+    job.step = "Downloading the source code";
+    await git(["init", "-q", tmp]);
+    await git(["-C", tmp, "remote", "add", "origin", info.repo]);
+    let exact = Boolean(build?.commit);
+    try {
+      if (!exact) throw new Error("no commit");
+      await git(["-C", tmp, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", build.commit]);
+    } catch {
+      exact = false;
+      await git(["-C", tmp, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", "HEAD"]);
+    }
+    await git(["-C", tmp, "sparse-checkout", "set", "--no-cone", ...CODE_PATTERNS]);
+    await git(["-C", tmp, "checkout", "-q", "FETCH_HEAD"]);
+    fs.rmSync(path.join(tmp, ".git"), { recursive: true, force: true });
+
+    const files = listFiles(tmp);
+    const totalSize = files.reduce((a, f) => a + f.size, 0);
+    if (!files.length) throw new Error("No code files came down. The app might use an unusual layout.");
+    if (totalSize > 80e6) throw new Error("This app's code is too big for your little server.");
+    fs.rmSync(sourceDir(pkg), { recursive: true, force: true });
+    fs.renameSync(tmp, sourceDir(pkg));
+    fs.writeFileSync(path.join(SOURCES, `${pkg}.json`), JSON.stringify({
+      pkg, name: info.name || savedReport(pkg)?.summary?.label || pkg, license: info.license, repo: info.repo,
+      sourceCode: info.sourceCode, version: exact ? build.version : null, exact,
+      fetchedAt: new Date().toISOString(), fileCount: files.length, totalSize,
+    }));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  // Keep only the most recent few, so the server doesn't fill up.
+  const metas = fs.readdirSync(SOURCES).filter((f) => f.endsWith(".json")).map((f) => readJson(path.join(SOURCES, f), null)).filter(Boolean)
+    .sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt));
+  for (const old of metas.slice(MAX_SOURCES)) {
+    fs.rmSync(sourceDir(old.pkg), { recursive: true, force: true });
+    fs.rmSync(path.join(SOURCES, `${old.pkg}.json`), { force: true });
+  }
+}
+
+function startSourceJob(pkg) {
+  fetching = true;
+  const release = holdAwake("source", 10);
+  const job = { id: "j_" + crypto.randomBytes(8).toString("hex"), kind: "source", appId: pkg, status: "running", step: "Starting", startedAt: Date.now() };
+  jobs.set(job.id, job);
+  fetchSource(job, pkg)
+    .then(() => { job.status = "done"; })
+    .catch((e) => { job.status = "error"; job.error = e.message || "Couldn't fetch the code."; })
+    .finally(() => { fetching = false; release(); job.finishedAt = Date.now(); setTimeout(() => jobs.delete(job.id), 30 * 60 * 1000); });
+  return job;
+}
+
+function safeSourcePath(pkg, rel) {
+  const base = sourceDir(pkg);
+  const full = path.normalize(path.join(base, String(rel || "")));
+  if (!full.startsWith(base + path.sep)) return null;
+  try { if (!fs.lstatSync(full).isFile()) return null; } catch { return null; }
+  return full;
+}
+
+const SOURCE_PROMPT = `You are the code guide inside REA Studio, helping a beginner with no coding background understand an open-source app's real source code.
+- Explain in plain, warm, everyday English. Explain any technical word the first time you use it.
+- Lead with the answer, then at most 6 short bullet points. They're reading on a phone.
+- Quote at most a few short lines of code, only when they help.
+- Base your answer on the code you're shown. If it isn't enough, say which other file would probably help.`;
+
+async function askSource(req, res, pkg) {
+  let body;
+  try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const meta = sourceMeta(pkg);
+  if (!meta) return send(res, 404, { error: "Fetch the source code first." });
+  const notReady = aiReady();
+  if (notReady) return send(res, 400, { error: notReady });
+  const question = String(body.question || "").trim().slice(0, 1000);
+  if (!question) return send(res, 400, { error: "Type a question first." });
+  const file = body.path ? safeSourcePath(pkg, body.path) : null;
+  const tree = listFiles(sourceDir(pkg)).map((f) => f.path).slice(0, 400).join("\n");
+  const text = file ? fs.readFileSync(file, "utf8").slice(0, 80000) : "";
+  try {
+    const out = await callModel({
+      system: SOURCE_PROMPT, maxTokens: 900, timeoutMs: 2 * 60 * 1000,
+      user: `App: ${meta.name} (license: ${meta.license})\n\nFiles in the project:\n${tree}\n\n`
+        + (file ? `The file they're looking at, ${body.path}:\n<file>\n${text}\n</file>\n\n` : "")
+        + `Question: ${question}`,
+    });
+    send(res, 200, { answer: out.text, cost: out.cost, brain: brain(out.model).short });
+  } catch (e) {
+    send(res, 502, { error: `The AI couldn't answer just now (${e.message}).` });
+  }
+}
+
+// For remixing: pick the source files most related to what the person asked for.
+function pickSourceFiles(pkg, query, budget = 60000) {
+  const dir = sourceDir(pkg);
+  const files = listFiles(dir).filter((f) => f.size < 120000
+    && /\.(kt|java|js|ts|dart|py|rs|go|c|cc|cpp|h|swift|html|css|md)$/i.test(f.path)
+    && !/(^|\/)(test|androidTest|build|generated)\//i.test(f.path));
+  const words = [...new Set(String(query).toLowerCase().match(/[a-z]{4,}/g) || [])].slice(0, 30);
+  for (const f of files) {
+    const lower = f.path.toLowerCase();
+    f.score = (/readme\.md$/.test(lower) ? 6 : 0) + (/\.(kt|java|js|ts|dart)$/.test(lower) ? 2 : 0)
+      + (/(main|activity|viewmodel|helper|util|model)/.test(lower) ? 1 : 0);
+    for (const w of words) if (lower.includes(w)) f.score += 5;
+    try {
+      const t = fs.readFileSync(path.join(dir, f.path), "utf8").toLowerCase();
+      for (const w of words) if (t.includes(w)) f.score += 1;
+    } catch { /* unreadable file */ }
+  }
+  files.sort((a, b) => b.score - a.score || a.size - b.size);
+  const picked = [];
+  let used = 0;
+  for (const f of files) {
+    if (used + f.size > budget) continue;
+    picked.push({ path: f.path, text: fs.readFileSync(path.join(dir, f.path), "utf8") });
+    used += f.size;
+    if (used > budget * 0.9) break;
+  }
+  return picked;
+}
+
 // ---------- routes ----------
 
 async function saveKey(req, res) {
@@ -532,15 +770,34 @@ async function saveKey(req, res) {
 async function saveBrain(req, res) {
   let body;
   try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
-  if (!BRAINS.some((b) => b.id === body.model)) return send(res, 400, { error: "That brain isn't on the list." });
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...readJson(SETTINGS_FILE, {}), model: body.model }));
-  send(res, 200, { model: body.model });
+  const list = await allModels();
+  const id = String(body.model || "");
+  if (!MODEL_ID.test(id) || (list.length && !list.some((m) => m.id === id))) {
+    return send(res, 400, { error: "That model isn't on OpenRouter's list." });
+  }
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...readJson(SETTINGS_FILE, {}), model: id }));
+  send(res, 200, { model: id, brain: brain(id) });
 }
 
-function status(res) {
+// Search OpenRouter's whole list. Every word typed has to match the name or id.
+async function listModels(res, url) {
+  const list = await allModels();
+  const words = (url.searchParams.get("q") || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = list
+    .filter((m) => words.every((w) => `${m.id} ${m.name}`.toLowerCase().includes(w)))
+    .sort((a, b) => b.created - a.created);
+  const view = (m) => ({ ...brain(m.id), modelId: m.id, context: m.context });
+  send(res, 200, {
+    total: list.length, count: matches.length,
+    models: matches.slice(0, 60).map(view),
+    popular: POPULAR.map((p) => modelInfo(p.id)).filter(Boolean).map(view),
+  });
+}
+
+async function status(res) {
+  await allModels();
   const model = currentModel();
-  send(res, 200, { aiConnected: Boolean(OPENROUTER_KEY), model, brain: brain(model), brains: BRAINS,
-    limitUsd: LIMIT_USD, spentUsd: spentThisMonth() });
+  send(res, 200, { aiConnected: Boolean(OPENROUTER_KEY), model, brain: brain(model), limitUsd: LIMIT_USD, spentUsd: spentThisMonth() });
 }
 
 const TYPES = {
@@ -580,11 +837,37 @@ const server = http.createServer(async (req, res) => {
     if (route === "POST /investigate") return investigate(req, res);
     if (route === "POST /openrouter-key") return saveKey(req, res);
     if (route === "POST /brain") return saveBrain(req, res);
+    if (route === "GET /models") return listModels(res, url);
     if (route === "GET /jobs") {
       const job = jobs.get(parts[2] || "");
       if (!job) return send(res, 404, { error: "That build finished a while ago. Open the app again." });
-      return send(res, 200, { status: job.status, step: job.step, error: job.error || "", projectId: job.projectId,
+      return send(res, 200, { status: job.status, step: job.step, error: job.error || "", kind: job.kind || "build",
+        projectId: job.projectId || null, appId: job.appId || null,
         seconds: Math.round(((job.finishedAt || Date.now()) - job.startedAt) / 1000) });
+    }
+    if (parts[1] === "sources") {
+      const pkg = parts[2] || "";
+      if (!PACKAGE_ID.test(pkg)) return send(res, 400, { error: "That isn't an app id." });
+      if (parts.length === 3 && req.method === "POST") {
+        if (fetching) return send(res, 429, { error: "Already fetching some code. Give it a minute." });
+        return send(res, 200, { jobId: startSourceJob(pkg).id });
+      }
+      const meta = sourceMeta(pkg);
+      if (!meta || !fs.existsSync(sourceDir(pkg))) return send(res, 404, { error: "Not fetched yet." });
+      if (parts.length === 3 && req.method === "GET") return send(res, 200, { ...meta, files: listFiles(sourceDir(pkg)).sort((a, b) => a.path.localeCompare(b.path)) });
+      if (parts[3] === "file" && req.method === "GET") {
+        const file = safeSourcePath(pkg, url.searchParams.get("path"));
+        if (!file) return send(res, 404, { error: "That file isn't here." });
+        const size = fs.statSync(file).size;
+        if (size > 400 * 1024) return send(res, 200, { path: url.searchParams.get("path"), text: "", tooBig: true, size });
+        return send(res, 200, { path: url.searchParams.get("path"), text: fs.readFileSync(file, "utf8"), size });
+      }
+      if (parts[3] === "ask" && req.method === "POST") return askSource(req, res, pkg);
+      if (parts.length === 3 && req.method === "DELETE") {
+        fs.rmSync(sourceDir(pkg), { recursive: true, force: true });
+        fs.rmSync(path.join(SOURCES, `${pkg}.json`), { force: true });
+        return send(res, 200, { deleted: true });
+      }
     }
     if (parts[1] === "projects") {
       if (parts.length === 2 && req.method === "GET") return listProjects(res);
