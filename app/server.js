@@ -23,7 +23,7 @@ const USAGE_FILE = path.join(DATA, "usage.json");
 const PORT = Number(process.env.PORT || 8080);
 const PASSCODE = process.env.APP_PASSCODE || "";
 const DEV = process.env.DEV === "1";
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || "";
+const SECRETS_FILE = path.join(DATA, "secrets.json");
 const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-5.5";
 const OPENROUTER_URL = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1") + "/chat/completions";
 const LIMIT_USD = Number(process.env.MONTHLY_LIMIT_USD || 20);
@@ -35,6 +35,13 @@ if (!PASSCODE && !DEV) {
   process.exit(1);
 }
 fs.mkdirSync(REPORTS, { recursive: true });
+
+// The OpenRouter key comes from the host's settings, or from the app's Settings screen
+// (saved on the server only, readable by nobody else, and never sent back to the phone).
+let OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || "";
+if (!OPENROUTER_KEY) {
+  try { OPENROUTER_KEY = JSON.parse(fs.readFileSync(SECRETS_FILE, "utf8")).openrouterKey || ""; } catch { /* not set yet */ }
+}
 
 // ---------- small helpers ----------
 
@@ -242,6 +249,25 @@ async function investigate(req, res) {
   }
 }
 
+async function saveKey(req, res) {
+  let body;
+  try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const key = String(body.openrouterKey || "").trim();
+  if (!/^sk-or-[A-Za-z0-9_-]{10,200}$/.test(key)) {
+    return send(res, 400, { error: "That doesn't look like an OpenRouter key. It starts with sk-or-." });
+  }
+  // Check the key with OpenRouter before saving it.
+  try {
+    const check = await fetch(OPENROUTER_URL.replace(/\/chat\/completions$/, "/key"), {
+      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(20 * 1000),
+    });
+    if (check.status === 401 || check.status === 403) return send(res, 400, { error: "OpenRouter says that key doesn't work. Try copying it again." });
+  } catch { /* OpenRouter unreachable right now: save it anyway, questions will show any problem */ }
+  fs.writeFileSync(SECRETS_FILE, JSON.stringify({ openrouterKey: key }), { mode: 0o600 });
+  OPENROUTER_KEY = key;
+  send(res, 200, { aiConnected: true });
+}
+
 function listReports(res) {
   const items = fs.readdirSync(REPORTS).filter((f) => f.endsWith(".json")).map((f) => {
     const full = path.join(REPORTS, f);
@@ -285,6 +311,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/reports") return listReports(res);
     if (req.method === "POST" && url.pathname === "/api/investigate") return investigate(req, res);
+    if (req.method === "POST" && url.pathname === "/api/openrouter-key") return saveKey(req, res);
     send(res, 404, { error: "Not found" });
   } catch (e) {
     send(res, 500, { error: "Something went wrong." });

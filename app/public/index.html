@@ -94,7 +94,15 @@
     <main class="scroll">
       <section class="stack tight">
         <h2 class="section">AI brains</h2>
-        <div class="card row"><div class="grow"><b>OpenRouter</b><span id="ai-status" class="muted small block"></span></div></div>
+        <div class="card stack tight">
+          <div><b>OpenRouter</b><span id="ai-status" class="muted small block"></span></div>
+          <form id="key-form" class="keyform">
+            <label for="or-key" class="sr">OpenRouter key</label>
+            <input id="or-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your OpenRouter key">
+            <button class="primary" type="submit">Connect</button>
+            <p id="key-msg" class="small muted" role="status"></p>
+          </form>
+        </div>
         <div class="card list">
           <div class="item"><span class="grow">Claude</span><span class="accent small">Main brain</span></div>
           <div class="item dim"><span class="grow">ChatGPT</span><span class="small">Version 2</span></div>

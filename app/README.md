@@ -23,7 +23,7 @@ The back room reuses the kit's own scripts (`get-app.sh`, `quick_report.py`), so
 | Setting | What it's for |
 |---|---|
 | `APP_PASSCODE` | **Required.** Only people with this can use the app. Pick something long. |
-| `OPENROUTER_API_KEY` | Your OpenRouter key, so Claude can explain results. Without it you still get reports. |
+| `OPENROUTER_API_KEY` | Optional. Easier: paste your key in the app's **Settings** screen. It's checked with OpenRouter, saved on the server only, and never sent back to the phone. Without a key you still get reports. |
 | `OPENROUTER_MODEL` | Optional. Default `anthropic/claude-sonnet-5.5` (about a cent per question). |
 | `MONTHLY_LIMIT_USD` | Optional. Default `20`. Claude pauses when the month's spending reaches it. |
 | `DATA_DIR` | Optional. Where reports and spending are saved. Use a lasting disk if your host offers one. |

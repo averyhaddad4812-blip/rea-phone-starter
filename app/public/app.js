@@ -251,7 +251,9 @@ function stat(label, value) {
 async function renderSettings() {
   try {
     const st = await api("/api/status");
-    $("ai-status").textContent = st.aiConnected ? `Connected · ${st.model}` : "Not connected yet. Add your OpenRouter key in the back room.";
+    $("ai-status").textContent = st.aiConnected ? `Connected · ${st.model}` : "Not connected yet. Paste your key to let Claude explain results.";
+    $("or-key").placeholder = st.aiConnected ? "Paste a new key to replace it" : "Paste your OpenRouter key";
+    $("key-form").querySelector("button").textContent = st.aiConnected ? "Replace key" : "Connect";
     $("limit").textContent = `$${st.limitUsd}`;
     $("spent").textContent = `$${st.spentUsd.toFixed(2)} used this month. Claude pauses when you reach the limit.`;
     $("meter-fill").style.width = `${Math.min(100, (st.spentUsd / st.limitUsd) * 100)}%`;
@@ -298,6 +300,25 @@ $("follow-form").addEventListener("submit", (e) => {
 });
 
 $("sign-out").addEventListener("click", () => lock("Locked. Enter your passcode to unlock."));
+
+$("key-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const key = $("or-key").value.trim();
+  if (!key) return;
+  const button = $("key-form").querySelector("button");
+  button.disabled = true;
+  $("key-msg").textContent = "Checking your key with OpenRouter…";
+  try {
+    await api("/api/openrouter-key", { openrouterKey: key });
+    $("or-key").value = "";
+    $("key-msg").textContent = "Connected! Claude will explain your next investigation.";
+    renderSettings();
+  } catch (err) {
+    if (err.message !== "locked") $("key-msg").textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 show(state.passcode ? "home" : "lock");
