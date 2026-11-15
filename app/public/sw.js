@@ -1,6 +1,6 @@
 // Keeps the app's screens available so it opens instantly from the home screen.
 // Investigations (/api/...) always go to the back room and are never cached.
-const CACHE = "rea-studio-v4";
+const CACHE = "rea-studio-v5";
 const SHELL = ["/", "/index.html", "/style.css", "/app.js", "/manifest.webmanifest", "/icon.svg", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {

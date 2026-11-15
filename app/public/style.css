@@ -205,3 +205,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .composer-card textarea:focus-visible, .composer-card input:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) { .spin, .steps-bar li.busy::before { animation: none; } }
 .price { white-space: pre-line; }
+
+/* Publishing */
+.publish { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid rgba(78, 201, 160, 0.45); }
+.publish .live { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; color: var(--ok); }
+.publish .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.publish .url { font-family: var(--mono); font-size: 12.5px; color: var(--text); word-break: break-all; }
+.publish .hint { font-size: 12.5px; color: var(--muted); }
+.publish .row { flex-wrap: wrap; gap: 6px; }
+.tool.publish-tool { background: var(--button); color: var(--button-ink); border-color: var(--button); font-weight: 600; }
+.tag.live { color: var(--ok); border-color: rgba(78, 201, 160, 0.4); }

@@ -18,7 +18,7 @@ const state = {
   sourcePkg: "", source: null, sourceJob: null, filePath: "",
   // Build
   project: null, projectId: store.get("projectId", ""), job: store.get("job", null), jobInfo: null,
-  buildTab: "chat", check: { rev: -1, loaded: false, slow: false, errors: [] },
+  buildTab: "chat", check: { rev: -1, loaded: false, slow: false, errors: [] }, canPublish: false, publishing: false,
   attach: null, // { pkg, label, mode: "code" | "ideas", license }
 };
 
@@ -209,13 +209,14 @@ async function renderHome() {
   try {
     const [{ reports }, { projects }, status] = await Promise.all([api("/api/reports"), api("/api/projects"), api("/api/status")]);
     setBrainName(status.brain.short);
+    state.canPublish = status.canPublish;
     $("projects").replaceChildren(...projects.slice(0, 8).map((p) => {
       const busy = state.job && state.job.projectId === p.id;
       return el("button", { class: "list-item", type: "button", onclick: () => openProject(p.id) },
         el("div", { class: "tile" }, initial(p.name)),
         el("div", { class: "grow" }, el("b", {}, p.name),
           el("span", { class: "muted small" }, busy ? "Building now…" : p.versionCount ? `Version ${p.versionCount}` : "Not built yet")),
-        p.remixLicense ? el("span", { class: "tag" }, p.remixLicense) : null,
+        p.live ? el("span", { class: "tag live" }, "Live") : p.remixLicense ? el("span", { class: "tag" }, p.remixLicense) : null,
         chevron());
     }));
     $("projects-empty").hidden = projects.length > 0;
@@ -525,6 +526,7 @@ function openProject(id) {
 
 async function openBuild() {
   renderBuild();
+  api("/api/status").then((st) => { state.canPublish = st.canPublish; renderPublish(); }).catch(() => {});
   try {
     const { project } = await api(`/api/projects/${state.projectId}`);
     useProject(project);
@@ -650,9 +652,54 @@ function renderBuild() {
 
   $("change").disabled = busy || !p;
   $("change").placeholder = p?.versionCount ? "Ask for a change" : "Describe your app";
+  renderPublish();
   renderSteps();
   renderBuildProgress();
   if (state.buildTab === "chat") scrollDown("build-log");
+}
+
+function renderPublish() {
+  const p = state.project;
+  const busy = Boolean(state.job && p && state.job.projectId === p.id);
+  const pub = p?.published;
+  $("publish").hidden = !(state.canPublish && p?.versionCount && !pub);
+  $("publish").disabled = busy || state.publishing;
+  $("publish").textContent = state.publishing ? "Publishing…" : "Publish to its own link";
+  $("publish-card").hidden = !pub;
+  if (!pub) return;
+  const copy = el("button", { class: "tool", type: "button", onclick: async () => {
+    try { await navigator.clipboard.writeText(pub.url); copy.textContent = "Copied!"; }
+    catch { copy.textContent = "Couldn't copy"; }
+    setTimeout(() => { copy.textContent = "Copy link"; }, 2000);
+  } }, "Copy link");
+  $("publish-card").replaceChildren(...[
+    el("span", { class: "live" }, pub.upToDate ? "Live" : "Live (an older version)"),
+    el("span", { class: "url" }, pub.url),
+    el("div", { class: "row" },
+      el("a", { class: "tool", href: pub.url, target: "_blank", rel: "noopener" }, "Open"),
+      copy,
+      !pub.upToDate ? el("button", { class: "tool publish-tool", type: "button", disabled: busy || state.publishing, onclick: publishApp }, "Update to this version") : null,
+      el("button", { class: "tool danger", type: "button", onclick: unpublishApp }, "Unpublish")),
+    el("span", { class: "hint" }, "Home screen: open it in Chrome, tap ⋮, then Install app. Anyone with the link can use it."),
+  ].filter(Boolean));
+}
+
+async function publishApp() {
+  const p = state.project;
+  if (!p || state.publishing) return;
+  state.publishing = true;
+  renderPublish();
+  try { const r = await api(`/api/projects/${p.id}/publish`, {}); useProject(r.project); }
+  catch (e) { if (e.message !== "locked") p.messages.push({ role: "note", text: e.message }); }
+  finally { state.publishing = false; renderBuild(); }
+}
+
+async function unpublishApp() {
+  const p = state.project;
+  if (!p || !window.confirm(`Unpublish “${p.name}”? Its link will stop working. You can publish again later, but it gets a new link.`)) return;
+  try { const r = await api(`/api/projects/${p.id}/publish`, null, "DELETE"); useProject(r.project); }
+  catch (e) { if (e.message !== "locked") p.messages.push({ role: "note", text: e.message }); }
+  renderBuild();
 }
 
 function renderBuildProgress() {
@@ -686,7 +733,8 @@ function renderSteps() {
   else if (c.loaded) setStep("s-check", { on: true, text: "No errors" });
   else setStep("s-check", { text: c.slow ? "Slow to load" : "Checking…" });
   const ready = built && !busy && c.loaded && !errors;
-  setStep("s-ready", ready ? { on: true, text: "Ready" } : { text: "Not yet" });
+  const live = p?.published?.upToDate;
+  setStep("s-ready", ready ? { on: true, text: live ? "Live" : "Ready" } : { text: "Not yet" });
 
   $("fix-bar").hidden = !(errors && !busy);
   if (errors) $("fix-text").textContent = `Check found a problem: ${c.errors[0]}`;
@@ -848,6 +896,7 @@ $("fix-button").addEventListener("click", () => {
   if (err) sendChange(`The automatic check found this problem in the app: "${err}". Please fix it and keep everything else the same.`);
 });
 $("download").addEventListener("click", downloadApp);
+$("publish").addEventListener("click", publishApp);
 $("undo").addEventListener("click", async () => {
   try { const r = await api(`/api/projects/${state.project.id}/undo`, {}); useProject(r.project); renderBuild(); }
   catch (e) { if (e.message !== "locked") { state.project.messages.push({ role: "note", text: e.message }); renderBuild(); } }

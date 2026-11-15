@@ -17,6 +17,12 @@ Every build follows **Craft Anything**'s steps, shown as a bar that fills in ord
 | **Check** | The preview watches for errors. If it finds one, tap **Fix it** |
 | **Ready** | No errors: open it full screen or download it |
 
+## Publish: each app at its own link
+
+When an app is ready, tap **Publish to its own link** in Preview. It goes live at a lasting link that you can open anywhere, share, or install on your home screen (in Chrome: tap ⋮, then Install app). It works offline once opened, and keeps its own saved data. After you change the app, tap **Update to this version**: the link stays the same. **Unpublish** takes it down.
+
+Published apps are served by `apps-server.js` on a different web address from REA Studio, so a published app can never reach your passcode, your key or anything else in REA Studio. Run it as a second service and tell REA Studio its address with `APPS_URL` (or `appsUrl` in `DATA_DIR/settings.json`).
+
 ## AI models
 
 Every text model on OpenRouter can be picked in Settings. Search by name (for example "gemini", "kimi" or "free"), and each one shows roughly what a build and a question cost. Muse isn't available, because Meta doesn't offer it to other apps.
@@ -35,6 +41,7 @@ The app shows the license on every source and every remixed app, and the builder
 | Part | What it does |
 |---|---|
 | `server.js` | The back room. No add-ons needed, just Node (plus Git for source code). Locked with your passcode. |
+| `apps-server.js` | Serves published apps, on its own web address. Read-only, nothing private in it. |
 | `public/` | The phone screens: Home, Study, Report, Source, File, Build, Settings |
 | `../Dockerfile` | A recipe for hosts that run Docker |
 
@@ -46,7 +53,8 @@ The app shows the license on every source and every remixed app, and the builder
 | `OPENROUTER_API_KEY` | Optional. Easier: paste your key in the app's **Settings** screen. It's checked with OpenRouter, saved on the server only, and never sent back to the phone. |
 | `OPENROUTER_MODEL` | Optional. The starting model. Default `anthropic/claude-sonnet-5.5`. |
 | `MONTHLY_LIMIT_USD` | Optional. Default `20`. The AI pauses when the month's spending reaches it. |
-| `DATA_DIR` | Optional. Where reports, source code, apps and spending are saved. |
+| `DATA_DIR` | Optional. Where reports, source code, apps and spending are saved. Give both servers the same one. |
+| `APPS_URL` | Optional. The app host's web address, which turns on publishing. |
 
 ## Run it yourself
 
@@ -65,4 +73,4 @@ APP_PASSCODE=your-passcode node app/server.js
 
 ## Coming next
 
-Save to GitHub, and publish an app to its own lasting link.
+Save to GitHub.

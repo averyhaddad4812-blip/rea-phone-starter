@@ -28,6 +28,7 @@ const SECRETS_FILE = path.join(DATA, "secrets.json");
 const SETTINGS_FILE = path.join(DATA, "settings.json");
 const SOURCES = path.join(DATA, "sources");
 const MODELS_FILE = path.join(DATA, "models.json");
+const PUBLISHED = path.join(DATA, "published");
 
 const PORT = Number(process.env.PORT || 8080);
 const PASSCODE = process.env.APP_PASSCODE || "";
@@ -59,6 +60,7 @@ if (!PASSCODE && !DEV) {
 fs.mkdirSync(REPORTS, { recursive: true });
 fs.mkdirSync(PROJECTS, { recursive: true });
 fs.mkdirSync(SOURCES, { recursive: true });
+fs.mkdirSync(PUBLISHED, { recursive: true });
 
 // The OpenRouter key comes from the host's settings, or from the app's Settings screen
 // (saved on the server only, readable by nobody else, and never sent back to the phone).
@@ -393,6 +395,7 @@ function projectView(p) {
       license: remix?.license || p.remixLicense?.license || "Unknown", link: remix?.sourceCode || p.remixLicense?.link || "" } : null,
     messages: p.messages.slice(-40),
     rev: p.rev, versionCount: p.versions.length, canUndo: p.versions.length > 1,
+    published: p.published && appsUrl() ? { url: `${appsUrl()}/${p.published.slug}/`, upToDate: p.published.rev === p.rev, at: p.published.at } : null,
     html: latest ? withCredit(p, latest.html) : "", previewUrl: latest ? previewUrl(p.id, p.rev) : "",
   };
 }
@@ -529,7 +532,7 @@ function listProjects(res) {
   const items = fs.readdirSync(PROJECTS).filter((f) => f.endsWith(".json")).map((f) => {
     const p = readJson(path.join(PROJECTS, f), null);
     return p && { id: p.id, name: p.name, updatedAt: p.updatedAt, versionCount: p.versions.length, inspiredBy: p.inspiredBy || null,
-      remixLicense: p.remixLicense?.license || null };
+      remixLicense: p.remixLicense?.license || null, live: Boolean(p.published) };
   }).filter(Boolean).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   send(res, 200, { projects: items.slice(0, 50) });
 }
@@ -586,6 +589,40 @@ function servePreview(req, res, url) {
     "Content-Type": "text/html; charset=utf-8",
     "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-modals allow-popups",
   });
+}
+
+// ---------- Publish: each app at its own lasting link ----------
+//
+// Published copies are served by app/apps-server.js on a different web address, so a
+// published app can never reach REA Studio. Set that address as APPS_URL (or appsUrl in
+// settings.json).
+
+function appsUrl() {
+  return String(process.env.APPS_URL || readJson(SETTINGS_FILE, {}).appsUrl || "").replace(/\/+$/, "");
+}
+
+function publish(res, project) {
+  if (!appsUrl()) return send(res, 400, { error: "Publishing isn't set up on this server yet." });
+  if (building) return send(res, 429, { error: "Wait for the build to finish first." });
+  const latest = project.versions[project.versions.length - 1];
+  if (!latest) return send(res, 400, { error: "Build the app first." });
+  const slug = project.published?.slug || `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "app"}-${crypto.randomBytes(3).toString("hex")}`;
+  const dir = path.join(PUBLISHED, slug);
+  fs.mkdirSync(dir, { recursive: true });
+  const html = withCredit(project, latest.html);
+  const theme = (html.match(/<meta[^>]+name=["']theme-color["'][^>]*content=["']([#a-zA-Z0-9(),.\s%]{1,40})["']/i) || [])[1] || "#181818";
+  fs.writeFileSync(path.join(dir, "index.html"), html);
+  fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify({ name: project.name, slug, theme, version: project.rev, projectId: project.id, publishedAt: new Date().toISOString() }));
+  project.published = { slug, rev: project.rev, at: new Date().toISOString() };
+  saveProject(project);
+  send(res, 200, { project: projectView(project) });
+}
+
+function unpublish(project) {
+  if (project.published?.slug && /^[a-z0-9][a-z0-9-]{2,60}$/.test(project.published.slug)) {
+    fs.rmSync(path.join(PUBLISHED, project.published.slug), { recursive: true, force: true });
+  }
+  project.published = null;
 }
 
 // ---------- Source: the whole real code of open-source apps ----------
@@ -812,7 +849,7 @@ async function listModels(res, url) {
 async function status(res) {
   await allModels();
   const model = currentModel();
-  send(res, 200, { aiConnected: Boolean(OPENROUTER_KEY), model, brain: brain(model), limitUsd: LIMIT_USD, spentUsd: spentThisMonth() });
+  send(res, 200, { aiConnected: Boolean(OPENROUTER_KEY), model, brain: brain(model), limitUsd: LIMIT_USD, spentUsd: spentThisMonth(), canPublish: Boolean(appsUrl()) });
 }
 
 const TYPES = {
@@ -890,7 +927,9 @@ const server = http.createServer(async (req, res) => {
       const project = loadProject(parts[2] || "");
       if (!project) return send(res, 404, { error: "That app wasn't found." });
       if (parts.length === 3 && req.method === "GET") return send(res, 200, { project: projectView(project) });
-      if (parts.length === 3 && req.method === "DELETE") { fs.rmSync(projectFile(project.id), { force: true }); return send(res, 200, { deleted: true }); }
+      if (parts.length === 3 && req.method === "DELETE") { unpublish(project); fs.rmSync(projectFile(project.id), { force: true }); return send(res, 200, { deleted: true }); }
+      if (parts[3] === "publish" && req.method === "POST") return publish(res, project);
+      if (parts[3] === "publish" && req.method === "DELETE") { unpublish(project); saveProject(project); return send(res, 200, { project: projectView(project) }); }
       if (parts[3] === "messages" && req.method === "POST") return addMessage(req, res, project);
       if (parts[3] === "undo" && req.method === "POST") return undo(res, project);
       if (parts[3] === "storage" && req.method === "PUT") return saveStorage(req, res, project);
