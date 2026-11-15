@@ -866,7 +866,8 @@ function serveStatic(req, res, url) {
     if (err) return send(res, 404, "Not found");
     send(res, 200, buf, {
       "Content-Type": TYPES[path.extname(file)] || "application/octet-stream",
-      "Cache-Control": rel === "/sw.js" || rel === "/index.html" ? "no-cache" : "public, max-age=3600",
+      // Code and styles are always checked for a newer copy, so a phone never mixes old and new parts.
+      "Cache-Control": /\.(html|js|css|webmanifest)$/.test(rel) ? "no-cache" : "public, max-age=3600",
       "Content-Security-Policy": "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'",
     });
   });
