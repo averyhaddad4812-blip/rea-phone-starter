@@ -373,6 +373,15 @@ function previewUrl(id, rev) {
   return `/preview/${id}?exp=${exp}&t=${t}&v=${rev}`;
 }
 
+// Safety net: an app built from someone's open-source code always carries their credit.
+function withCredit(p, html) {
+  const meta = p.remixFrom ? (sourceMeta(p.remixFrom) || p.remixLicense) : null;
+  const link = meta?.sourceCode || meta?.link || "";
+  if (!meta || !link || !html || html.includes(link)) return html;
+  const credit = `<!-- Based on "${String(meta.name).replace(/--/g, "-")}" (${link}), licensed under ${meta.license}. Changed and translated with REA Studio. -->\n`;
+  return /^\s*<!doctype[^>]*>/i.test(html) ? html.replace(/^\s*<!doctype[^>]*>\s*/i, (m) => m.trimEnd() + "\n" + credit) : credit + html;
+}
+
 function projectView(p) {
   const latest = p.versions[p.versions.length - 1];
   const inspired = p.inspiredBy ? savedReport(p.inspiredBy) : null;
@@ -384,7 +393,7 @@ function projectView(p) {
       license: remix?.license || p.remixLicense?.license || "Unknown", link: remix?.sourceCode || p.remixLicense?.link || "" } : null,
     messages: p.messages.slice(-40),
     rev: p.rev, versionCount: p.versions.length, canUndo: p.versions.length > 1,
-    html: latest ? latest.html : "", previewUrl: latest ? previewUrl(p.id, p.rev) : "",
+    html: latest ? withCredit(p, latest.html) : "", previewUrl: latest ? previewUrl(p.id, p.rev) : "",
   };
 }
 
@@ -393,7 +402,7 @@ let building = false;
 
 function startBuild(project, request) {
   building = true;
-  const release = holdAwake("build", 10);
+  const release = holdAwake("build", 12);
   const job = { id: "j_" + crypto.randomBytes(8).toString("hex"), projectId: project.id, status: "running", step: "Reading your idea", startedAt: Date.now() };
   jobs.set(job.id, job);
   runBuild(job, project, request)
@@ -427,7 +436,7 @@ async function runBuild(job, project, request) {
   ].filter(Boolean).join("\n\n");
 
   job.step = `Writing your app with ${brain(currentModel()).short}`;
-  const out = await callModel({ system: BUILD_PROMPT, user, maxTokens: 16000, timeoutMs: 5 * 60 * 1000 });
+  const out = await callModel({ system: BUILD_PROMPT, user, maxTokens: 32000, timeoutMs: 8 * 60 * 1000 });
 
   job.step = "Checking it";
   const p = loadProject(project.id) || project;
@@ -436,20 +445,18 @@ async function runBuild(job, project, request) {
   const said = out.text.replace(/<app_name>[\s\S]*?<\/app_name>/i, "").replace(/<app_html>[\s\S]*$/i, "").trim();
 
   if (!htmlMatch) {
-    if (out.finish === "length") throw new Error("The app got too big to write in one go. Try asking for a smaller first version.");
+    if (out.finish === "length") {
+      throw new Error(prev ? "That change made the app too big to write in one go. Try asking for one part at a time."
+        : "The app got too big to write in one go. Try asking for a smaller first version, then add to it.");
+    }
     // No app this time: the brain explained something instead (for example, why it won't build a request).
     p.messages.push({ role: "ai", text: said || "I couldn't build that one. Try describing it a different way.", at: new Date().toISOString(), cost: out.cost, brain: brain(out.model).short });
     saveProject(p);
     return;
   }
   let html = htmlMatch[1].replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/, "");
-  // Safety net: an app built from someone's open-source code always carries their credit.
-  const remixMeta = p.remixFrom ? (sourceMeta(p.remixFrom) || p.remixLicense) : null;
-  const remixLink = remixMeta?.sourceCode || remixMeta?.link || "";
-  if (remixMeta && remixLink && !html.includes(remixLink)) {
-    const credit = `<!-- Based on "${String(remixMeta.name).replace(/--/g, "-")}" (${remixLink}), licensed under ${remixMeta.license}. Changed and translated with REA Studio. -->\n`;
-    html = /^\s*<!doctype[^>]*>/i.test(html) ? html.replace(/^\s*<!doctype[^>]*>\s*/i, (m) => m.trimEnd() + "\n" + credit) : credit + html;
-  }
+  html = withCredit(p, html);
+
   if (!/<(html|body|div|main|canvas|script)\b/i.test(html) || html.length > 500_000) {
     throw new Error("The app that came back didn't look right. Try asking again.");
   }
@@ -571,9 +578,10 @@ function servePreview(req, res, url) {
   const latest = p && p.versions[p.versions.length - 1];
   if (!latest) return send(res, 404, "Nothing built yet.");
   const checker = checkerScript(p.storage);
-  const html = /<head[^>]*>/i.test(latest.html)
-    ? latest.html.replace(/<head[^>]*>/i, (m) => m + checker)
-    : checker + latest.html;
+  const source = withCredit(p, latest.html);
+  const html = /<head[^>]*>/i.test(source)
+    ? source.replace(/<head[^>]*>/i, (m) => m + checker)
+    : checker + source;
   send(res, 200, html, {
     "Content-Type": "text/html; charset=utf-8",
     "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-modals allow-popups",
