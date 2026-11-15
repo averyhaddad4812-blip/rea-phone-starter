@@ -6,7 +6,7 @@ This project lets someone use **REA (Reverse Engineer Anything)** from their pho
 
 The person pays for every token, and a single app can have thousands of code pieces. Earlier sessions burned over a million tokens by exploring too much. So:
 
-- **Answer only the question asked, then stop.** Offer a next step instead of doing it.
+- **Answer everything the person asks, then stop.** Several questions in one message is fine; answer them all. But don't go exploring beyond what was asked. Offer a next step instead of doing it.
 - **For any overview, use the quick report first:** `python3 scripts/quick_report.py apps/<file>.apk`. It answers "is it genuine, what permissions, Internet, screens, languages" with no exploring. Summarize it in a few lines.
 - **Ask before any big job.** Anything that means reading more than about 3 classes or methods, scanning the whole app, or comparing lots of source files: say what it would involve and ask first.
 - **Never** run `decompile-all`, never loop over every class, and don't start helper agents or parallel tasks for this project.

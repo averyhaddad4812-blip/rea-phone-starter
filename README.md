@@ -28,11 +28,17 @@ For questions the report can't answer, like "How does this feature work?":
 
 1. **Open Claude Code** in the Claude app and start a session on this project (`rea-phone-starter`).
 2. **Say:** "Set up REA." Claude runs the setup. It takes a minute or two, once per session.
-3. **Ask one question at a time.** For example: "Get Fossify Calculator from F-Droid and tell me about it."
+3. **Ask away.** For example: "Get Fossify Calculator from F-Droid and tell me about it." You can ask several things at once.
 
 Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 
-**Saving tokens:** the kit tells Claude to keep investigations small and to ask you before any big job. Start with the Run button for overviews, and use Claude Code for the "how does it work" questions.
+**Saving tokens:** the kit tells Claude to answer what you ask without wandering off to explore, and to check with you before any big job. Start with the Run button for overviews, and use Claude Code for the "how does it work" questions.
+
+## Get your own copy
+
+1. On this project's GitHub page, tap **Fork**. That copies it to your own account.
+2. In your copy, open the **Actions** tab and tap the button to **enable workflows**. GitHub switches the Run button off in copies until you do this.
+3. That's it. Use the Run button or Claude Code in your copy, just like above.
 
 ## What REA can show you
 
@@ -56,7 +62,8 @@ Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 |---|---|
 | "REA isn't set up in this session yet" | Say "Set up REA." Every new session starts fresh. |
 | The Run button fails at "Download the app" | Check the package id. It must match the end of the app's F-Droid address exactly. |
-| A Claude Code session is using lots of tokens | Stop it, start a new session, and ask one small question at a time. |
+| The Run button is missing in your copy | Open the Actions tab and enable workflows (see "Get your own copy"). |
+| A Claude Code session is using lots of tokens | Stop it, start a new session, and ask smaller questions. |
 | A download fails during setup | This session may be blocking downloads from GitHub or F-Droid. Your Claude Code environment's network setting may need to allow those sites. |
 | "didn't match its expected fingerprint" | The download was damaged or changed, and it was deleted for safety. Try again later. |
 | Lots of scrambled names | That's normal for released apps (see above). |
@@ -74,6 +81,10 @@ Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 | `STARTER-QUESTIONS.md` | Ready-made questions to try |
 | `apps/` | Where app files go (not saved to GitHub) |
 | `reports/` | Plain-English write-ups you can read later |
+
+## License
+
+This kit is free to use, copy and change under the [MIT License](LICENSE).
 
 ## Credits
 
