@@ -1,6 +1,6 @@
 // Keeps the app's screens available so it opens instantly from the home screen.
 // Investigations (/api/...) always go to the back room and are never cached.
-const CACHE = "rea-studio-v2";
+const CACHE = "rea-studio-v3";
 const SHELL = ["/", "/index.html", "/style.css", "/app.js", "/manifest.webmanifest", "/icon.svg", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -17,7 +17,7 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/preview/")) return;
   // Network first, so updates show up right away; fall back to the saved copy when offline.
   e.respondWith(
     fetch(e.request)

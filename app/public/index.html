@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E1714">
+<meta name="theme-color" content="#211838">
 <title>REA Studio</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon-192.png">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;family=Shrikhand&amp;display=swap">
 <link rel="stylesheet" href="/style.css">
 <script src="/app.js" defer></script>
 </head>
 <body>
 <div class="app">
+  <div class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
   <!-- Lock -->
   <section id="view-lock" class="view lock" hidden>
-    <div class="mark big"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></div>
-    <h1>REA Studio</h1>
+    <img src="/icon.svg" alt="" class="lock-icon">
+    <h1 class="wordmark big">REA Studio</h1>
     <p class="muted">Enter your passcode to unlock.</p>
     <form id="lock-form" class="stack">
       <label for="passcode" class="sr">Passcode</label>
@@ -31,46 +32,73 @@
   <!-- Home -->
   <section id="view-home" class="view" hidden>
     <header class="bar">
-      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></div><span>REA Studio</span></div>
-      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span>Claude</button>
+      <span class="wordmark grow">REA Studio</span>
+      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span><span class="brain-name">Claude</span></button>
     </header>
     <main class="scroll">
-      <h1 class="hero">What do you want to understand?</h1>
-      <form id="ask-form" class="card ask">
-        <label for="app-id" class="label">App (F-Droid package id or link)</label>
-        <input id="app-id" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="org.fossify.math" required>
+      <h1 class="hero">What should we make today?</h1>
+
+      <div class="modes" role="tablist" aria-label="What to do">
+        <button type="button" role="tab" id="mode-build" class="mode build" aria-selected="true">Build an app</button>
+        <button type="button" role="tab" id="mode-study" class="mode study" aria-selected="false">Study an app</button>
+      </div>
+
+      <form id="build-form" class="composer-card build">
+        <div id="inspired" class="inspired" hidden>
+          <span>Using ideas from <b id="inspired-name"></b></span>
+          <button type="button" id="inspired-clear" class="text-button">Remove</button>
+        </div>
+        <label for="build-prompt" class="sr">Describe your app</label>
+        <textarea id="build-prompt" rows="4" placeholder="Describe your app, like “a habit tracker with streaks and confetti”"></textarea>
+        <p id="build-error" class="error" role="alert"></p>
+        <div class="row end"><button class="send" type="submit" aria-label="Build it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+      </form>
+
+      <form id="ask-form" class="composer-card study" hidden>
+        <label for="app-id" class="label">App (F-Droid id or link)</label>
+        <input id="app-id" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="org.fossify.math">
         <label for="question" class="label">Your question</label>
         <textarea id="question" rows="2" placeholder="Is this app safe to install?"></textarea>
         <p id="ask-error" class="error" role="alert"></p>
-        <div class="row end">
-          <button class="send" type="submit" aria-label="Start investigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
-        </div>
+        <div class="row end"><button class="send" type="submit" aria-label="Study it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
       </form>
-      <div class="chips" aria-label="Suggested questions">
-        <button type="button" class="chip" data-q="Is this app genuine?">Is this app genuine?</button>
+
+      <div id="build-ideas" class="chips" aria-label="Ideas">
+        <button type="button" class="chip" data-idea="A habit tracker with daily streaks and confetti when I finish">Habit tracker</button>
+        <button type="button" class="chip" data-idea="A retro arcade snake game with touch controls and a high score">Snake game</button>
+        <button type="button" class="chip" data-idea="A shift log for my work week that adds up my hours and overtime">Shift log</button>
+      </div>
+      <div id="study-ideas" class="chips" aria-label="Questions" hidden>
+        <button type="button" class="chip" data-q="Is this app genuine?">Is it genuine?</button>
         <button type="button" class="chip" data-q="Does this app go online?">Does it go online?</button>
         <button type="button" class="chip" data-q="What permissions does it ask for, and what do they mean?">Its permissions</button>
       </div>
+
       <section class="stack tight">
-        <h2 class="section">Recent</h2>
+        <h2 class="section build-ink">Your apps</h2>
+        <div id="projects" class="stack tight"></div>
+        <p id="projects-empty" class="muted small">Apps you build show up here.</p>
+      </section>
+      <section class="stack tight">
+        <h2 class="section study-ink">Apps you studied</h2>
         <div id="recent" class="stack tight"></div>
-        <p id="recent-empty" class="muted small">Your investigations will show up here.</p>
+        <p id="recent-empty" class="muted small">Apps you study show up here.</p>
       </section>
       <p id="home-spend" class="muted small"></p>
     </main>
   </section>
 
-  <!-- Chat -->
+  <!-- Study (REA investigations) -->
   <section id="view-chat" class="view" hidden>
     <header class="bar">
       <button class="icon" type="button" data-go="home" aria-label="Back to home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-      <div class="titles"><span id="chat-title" class="title">Investigation</span><span id="chat-sub" class="muted small"></span></div>
-      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span>Claude</button>
+      <div class="titles"><span id="chat-title" class="title">Study</span><span id="chat-sub" class="muted small"></span></div>
+      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span><span class="brain-name">Claude</span></button>
     </header>
     <main id="chat-log" class="scroll chat" aria-live="polite"></main>
     <form id="follow-form" class="composer">
       <label for="follow" class="sr">Ask a follow-up</label>
-      <input id="follow" type="text" placeholder="Ask a follow-up" autocomplete="off">
+      <input id="follow" type="text" placeholder="Ask about this app" autocomplete="off">
       <button class="send small" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </form>
   </section>
@@ -83,19 +111,64 @@
     </header>
     <main id="report-body" class="scroll"></main>
     <div class="actions">
-      <button class="primary" type="button" disabled>Save to GitHub (coming soon)</button>
-      <button class="secondary" type="button" data-go="chat">Ask a follow-up</button>
+      <button class="primary" type="button" id="inspire-button">Build something inspired by this</button>
+      <button class="secondary" type="button" data-go="chat">Ask about this app</button>
     </div>
+  </section>
+
+  <!-- Build (Lovable-style) -->
+  <section id="view-build" class="view" hidden>
+    <header class="bar">
+      <button class="icon" type="button" data-go="home" aria-label="Back to home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="titles"><span id="build-title" class="title">New app</span><span id="build-sub" class="muted small"></span></div>
+      <button class="chip brain" type="button" data-go="settings"><span class="dot"></span><span class="brain-name">Claude</span></button>
+    </header>
+    <ol id="steps" class="steps-bar" aria-label="Craft Anything steps">
+      <li class="s-study"><span class="s-name">Study</span><span class="s-state"></span></li>
+      <li class="s-build"><span class="s-name">Build</span><span class="s-state"></span></li>
+      <li class="s-check"><span class="s-name">Check</span><span class="s-state"></span></li>
+      <li class="s-ready"><span class="s-name">Ready</span><span class="s-state"></span></li>
+    </ol>
+    <div class="tabs" role="tablist" aria-label="Chat or preview">
+      <button type="button" role="tab" id="tab-chat" aria-selected="true">Chat</button>
+      <button type="button" role="tab" id="tab-preview" aria-selected="false">Preview</button>
+    </div>
+    <main id="build-log" class="scroll chat" aria-live="polite"></main>
+    <div id="build-preview" class="preview-pane" hidden>
+      <div class="frame-wrap"><iframe id="preview" title="Your app" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
+        <p id="preview-empty" class="muted">Your app appears here once it's built.</p></div>
+      <div class="tools">
+        <a id="open-full" class="tool" target="_blank" rel="noopener">Open full screen</a>
+        <button id="download" class="tool" type="button">Download</button>
+        <button id="undo" class="tool" type="button">Undo last change</button>
+        <button id="delete" class="tool danger" type="button">Delete</button>
+      </div>
+    </div>
+    <div id="fix-bar" class="fix-bar" hidden>
+      <span id="fix-text"></span>
+      <button id="fix-button" class="primary small" type="button">Fix it</button>
+    </div>
+    <form id="change-form" class="composer">
+      <label for="change" class="sr">Ask for a change</label>
+      <input id="change" type="text" placeholder="Ask for a change" autocomplete="off">
+      <button class="send small" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </form>
   </section>
 
   <!-- Settings -->
   <section id="view-settings" class="view" hidden>
-    <header class="bar"><h1 class="title big">Settings</h1></header>
+    <header class="bar"><h1 class="wordmark big">Settings</h1></header>
     <main class="scroll">
       <section class="stack tight">
-        <h2 class="section">AI brains</h2>
+        <h2 class="section settings-ink">AI brain</h2>
+        <p class="muted small">Pick which AI builds and explains for you. Your OpenRouter credits pay for whichever one you choose.</p>
+        <div id="brains" class="card list" role="radiogroup" aria-label="AI brain"></div>
+        <p class="muted small">Muse isn't available yet, because Meta doesn't offer it to other apps.</p>
+      </section>
+      <section class="stack tight">
+        <h2 class="section settings-ink">OpenRouter</h2>
         <div class="card stack tight">
-          <div><b>OpenRouter</b><span id="ai-status" class="muted small block"></span></div>
+          <span id="ai-status" class="muted small"></span>
           <form id="key-form" class="keyform">
             <label for="or-key" class="sr">OpenRouter key</label>
             <input id="or-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your OpenRouter key">
@@ -103,22 +176,17 @@
             <p id="key-msg" class="small muted" role="status"></p>
           </form>
         </div>
+      </section>
+      <section class="stack tight">
+        <h2 class="section settings-ink">Safety</h2>
         <div class="card list">
-          <div class="item"><span class="grow">Claude</span><span class="accent small">Main brain</span></div>
-          <div class="item dim"><span class="grow">ChatGPT</span><span class="small">Version 2</span></div>
-          <div class="item dim"><span class="grow">Gemini</span><span class="small">Version 2</span></div>
-          <div class="item dim"><span class="grow">Muse</span><span class="small">If Meta allows</span></div>
+          <div class="item"><span class="grow"><b>Clean-room mode</b><span class="muted small block">Studying only reads app files. Building uses ideas, never copied code.</span></span><span class="on">On</span></div>
+          <div class="item"><span class="grow"><b>Open-source apps only</b><span class="muted small block">You can study apps from F-Droid</span></span><span class="on">On</span></div>
+          <div class="item"><span class="grow"><b>Sealed previews</b><span class="muted small block">Apps you build can't see your passcode or key</span></span><span class="on">On</span></div>
         </div>
       </section>
       <section class="stack tight">
-        <h2 class="section">Safety</h2>
-        <div class="card list">
-          <div class="item"><span class="grow"><b>Clean-room mode</b><span class="muted small block">Reads app files only. Always on in Version 1.</span></span><span class="accent small">On</span></div>
-          <div class="item"><span class="grow"><b>Open-source apps only</b><span class="muted small block">Version 1 studies apps from F-Droid</span></span><span class="accent small">On</span></div>
-        </div>
-      </section>
-      <section class="stack tight">
-        <h2 class="section">Spending</h2>
+        <h2 class="section settings-ink">Spending</h2>
         <div class="card"><div class="row between"><b>Monthly limit</b><span id="limit" class="num"></span></div>
           <div class="meter" aria-hidden="true"><div id="meter-fill"></div></div>
           <span id="spent" class="muted small block"></span></div>
@@ -128,10 +196,10 @@
   </section>
 
   <nav id="nav" class="nav" aria-label="Main" hidden>
-    <button type="button" data-go="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</button>
-    <button type="button" data-go="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg>Chat</button>
-    <button type="button" data-go="report"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>Report</button>
-    <button type="button" data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Settings</button>
+    <button type="button" data-go="home" class="n-home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</button>
+    <button type="button" data-go="chat" class="n-study"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>Study</button>
+    <button type="button" data-go="build" class="n-build"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5l4 4L9 19H5v-4z"/><path d="M12.5 7.5l4 4"/></svg>Build</button>
+    <button type="button" data-go="settings" class="n-settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Settings</button>
   </nav>
 </div>
 </body>

@@ -1,13 +1,13 @@
 {
   "name": "REA Studio",
   "short_name": "REA Studio",
-  "description": "Understand open-source Android apps in plain English, from your phone.",
+  "description": "Study open-source apps and build your own, from your phone.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0E1714",
-  "theme_color": "#0E1714",
+  "background_color": "#211838",
+  "theme_color": "#211838",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

@@ -34,9 +34,9 @@ Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 
 **Saving tokens:** the kit tells Claude to answer what you ask without wandering off to explore, and to check with you before any big job. Start with the Run button for overviews, and use Claude Code for the "how does it work" questions.
 
-### 📲 REA Studio: the phone app (new)
+### 🌈 REA Studio: the phone app (new)
 
-A private app for your home screen: type an app's F-Droid id, ask a question, and get a REA check plus Claude's plain-English answer. It needs a small server to live on. See **[app/README.md](app/README.md)**.
+A private app for your home screen. **Build** apps by describing them (like Lovable), and **Study** open-source apps with REA. It needs a small server to live on. See **[app/README.md](app/README.md)**.
 
 ## Get your own copy
 
