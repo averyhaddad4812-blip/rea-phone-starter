@@ -8,18 +8,31 @@ This kit sets up **[REA (Reverse Engineer Anything)](https://github.com/morluto/
 
 REA is a powerful open-source tool, but it's built for computers. It can't install on a phone, and to look inside Android apps it needs two extra tools it doesn't install itself. This kit handles all of that for you in one step, inside Claude Code's cloud computer, which you control from the Claude app.
 
-## What you need
+## Two ways to use it
 
-- The **Claude app** with access to Claude Code
-- A free **GitHub** account, with this project in it
+### 🔘 The Run button: quick checks, no Claude needed
 
-## How to use it
+GitHub's own computers run REA for you and save a plain-English report. It costs no Claude tokens.
+
+1. Open this project on **github.com in your phone's browser**. (If the GitHub app doesn't show a Run button, the website always does.)
+2. Tap **Actions**, then **Check an app**, then **Run workflow**.
+3. Type the app's **package id**, which is the end of its F-Droid address. For `https://f-droid.org/packages/org.fossify.math/` you'd type `org.fossify.math`.
+4. Tap the green **Run workflow** button and wait 2–3 minutes.
+5. Open the finished run to read the report, or find it in the **reports** folder.
+
+The report tells you whether the app file is genuine, what permissions it asks for, whether it uses the Internet, what screens it has, and how many languages it speaks. See [reports/org.fossify.math.md](reports/org.fossify.math.md) for an example.
+
+### 💬 Claude Code: when you want explanations
+
+For questions the report can't answer, like "How does this feature work?":
 
 1. **Open Claude Code** in the Claude app and start a session on this project (`rea-phone-starter`).
-2. **Say:** "Set up REA." Claude runs the setup. It takes a minute or two, and happens once per session.
-3. **Ask away.** For example: "Get Fossify Calculator from F-Droid and tell me about it."
+2. **Say:** "Set up REA." Claude runs the setup. It takes a minute or two, once per session.
+3. **Ask one question at a time.** For example: "Get Fossify Calculator from F-Droid and tell me about it."
 
 Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
+
+**Saving tokens:** the kit tells Claude to keep investigations small and to ask you before any big job. Start with the Run button for overviews, and use Claude Code for the "how does it work" questions.
 
 ## What REA can show you
 
@@ -42,6 +55,8 @@ Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 | What you see | What to do |
 |---|---|
 | "REA isn't set up in this session yet" | Say "Set up REA." Every new session starts fresh. |
+| The Run button fails at "Download the app" | Check the package id. It must match the end of the app's F-Droid address exactly. |
+| A Claude Code session is using lots of tokens | Stop it, start a new session, and ask one small question at a time. |
 | A download fails during setup | This session may be blocking downloads from GitHub or F-Droid. Your Claude Code environment's network setting may need to allow those sites. |
 | "didn't match its expected fingerprint" | The download was damaged or changed, and it was deleted for safety. Try again later. |
 | Lots of scrambled names | That's normal for released apps (see above). |
@@ -50,6 +65,8 @@ Not sure what to ask? See **[STARTER-QUESTIONS.md](STARTER-QUESTIONS.md)**.
 
 | File | What it does |
 |---|---|
+| `.github/workflows/check-app.yml` | The Run button on GitHub |
+| `scripts/quick_report.py` | Writes the plain-English report |
 | `scripts/setup.sh` | Installs REA and its two Android tools, checks every download |
 | `scripts/rea` | Runs REA with the right settings |
 | `scripts/get-app.sh` | Downloads the newest version of an app from F-Droid |

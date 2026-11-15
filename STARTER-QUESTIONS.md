@@ -1,6 +1,8 @@
 # Starter questions
 
-Copy any of these into Claude Code. Swap in a different app whenever you like.
+**Just want an overview?** Use the Run button on GitHub instead (see the README). It's free and needs no Claude.
+
+Copy any of these into Claude Code, **one at a time**. Swap in a different app whenever you like.
 
 ## Your first look
 

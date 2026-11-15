@@ -39,3 +39,8 @@ if command -v sha256sum >/dev/null 2>&1; then sum="$(sha256sum "$dest" | cut -d'
 echo "✅ Saved $dest"
 echo "   From:        $url"
 echo "   Fingerprint: $sum"
+
+# When run by the GitHub "Run" button, hand the file's location to the next step.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  { echo "file=$dest"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+fi

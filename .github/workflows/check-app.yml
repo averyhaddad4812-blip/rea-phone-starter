@@ -1,0 +1,79 @@
+# The "Run" button: check an F-Droid app with REA, no Claude needed.
+#
+# On GitHub: Actions -> "Check an app" -> Run workflow -> type a package id.
+# GitHub's own computers set up REA, download the app, write a plain-English
+# report, and save it to the reports/ folder.
+name: Check an app
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "The app's F-Droid package id: the end of its F-Droid address (e.g. org.fossify.math)"
+        required: true
+        default: org.fossify.math
+        type: string
+
+permissions:
+  contents: write
+
+# One check at a time, so saving reports never collides.
+concurrency:
+  group: check-app
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Get the kit
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up REA
+        run: bash scripts/setup.sh
+
+      # The package id is passed through an environment variable (never pasted
+      # into the command itself), and get-app.sh rejects anything that isn't a
+      # valid package id.
+      - name: Download the app from F-Droid
+        id: app
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: bash scripts/get-app.sh "$PACKAGE"
+
+      - name: Write the report
+        env:
+          APK: ${{ steps.app.outputs.file }}
+          SOURCE: ${{ steps.app.outputs.url }}
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          python3 scripts/quick_report.py "$APK" --source "$SOURCE" --out "reports/$PACKAGE.md"
+          cat "reports/$PACKAGE.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the report to the repository
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "reports/$PACKAGE.md"
+          if git diff --cached --quiet; then
+            echo "The report hasn't changed since last time."
+            exit 0
+          fi
+          git commit -m "Add REA report for $PACKAGE"
+          git pull --rebase
+          git push

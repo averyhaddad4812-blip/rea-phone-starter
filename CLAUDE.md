@@ -2,6 +2,17 @@
 
 This project lets someone use **REA (Reverse Engineer Anything)** from their phone through Claude Code. The person using it is usually a beginner on a phone with no coding background. Your job is to do the technical work and explain what you find in plain, friendly English.
 
+## Keep it small (this matters most)
+
+The person pays for every token, and a single app can have thousands of code pieces. Earlier sessions burned over a million tokens by exploring too much. So:
+
+- **Answer only the question asked, then stop.** Offer a next step instead of doing it.
+- **For any overview, use the quick report first:** `python3 scripts/quick_report.py apps/<file>.apk`. It answers "is it genuine, what permissions, Internet, screens, languages" with no exploring. Summarize it in a few lines.
+- **Ask before any big job.** Anything that means reading more than about 3 classes or methods, scanning the whole app, or comparing lots of source files: say what it would involve and ask first.
+- **Never** run `decompile-all`, never loop over every class, and don't start helper agents or parallel tasks for this project.
+- Trim REA output with `--token-limit 2000` or `--filter-output <keys>`, or save it to a file and pull out only what you need. Never read a whole large output.
+- If a question can't be answered without a lot of digging, say so plainly and offer a smaller version of it.
+
 ## Every session
 
 1. Each cloud session starts fresh. If `.rea-env` doesn't exist, run `bash scripts/setup.sh` before anything else and tell the person in one line that you're setting REA up. It takes a minute or two the first time.
@@ -18,7 +29,8 @@ This project lets someone use **REA (Reverse Engineer Anything)** from their pho
 
 | What the person wants | Command |
 |---|---|
-| Quick overview: name, version, permissions, screens, class count | `scripts/rea inspect-android-package <apk> --format json` |
+| **Start here:** plain-English report (genuine?, permissions, Internet, screens, languages) | `python3 scripts/quick_report.py <apk>` (writes `reports/<package>.md`) |
+| Raw overview data: name, version, permissions, screens, class count | `scripts/rea inspect-android-package <apk> --format json` |
 | Is this file genuine? Who signed it? | `scripts/rea inspect-apk-signature <apk>` |
 | The app's text, labels and translations | `scripts/rea decode-android-resources <apk> --format json` (add `--locale de` etc. for a language) |
 | What's inside one part of the code | `scripts/rea inspect-android-class <apk> <full.class.Name> --format json` |
